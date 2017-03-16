@@ -41,6 +41,7 @@ var allTabs map[string]sublogTabView
 var allSuppressions []logSuppression
 var logBuffer = map[string][]logBuffered { "critical": {}, "alert": {}, "default": {} }
 var Notebook *gtk.Notebook
+var globalLS *gtk.ListStore
 
 var allLogLevels = []string { "critical", "alert", "default", "all" }
 
@@ -103,7 +104,25 @@ func buffer_line(loglevel, line string, metadata map[string]string) (int, logBuf
 	return 0, newbuf
 }
 
-func appendLogLine(line, loglevel string, section, all bool) {
+func appendLogToTVB(tvb *gtk.TextBuffer, line, loglevel string, timestamp int64) {
+	tss := time.Unix(timestamp / 1000000000, timestamp % 1000000000).Format(time.UnixDate)
+	iend := tvb.GetEndIter()
+	lastOffset := iend.GetOffset()
+	tvb.Insert(iend, tss)
+	xistart, xiend := tvb.GetBounds()
+	xistart = tvb.GetIterAtOffset(lastOffset)
+	tvb.ApplyTagByName("underline", xistart, xiend)
+
+	iend = tvb.GetEndIter()
+	lastOffset = iend.GetOffset()
+	tvb.Insert(iend, " "+line+"\n")
+	xistart, xiend = tvb.GetBounds()
+	xistart = tvb.GetIterAtOffset(lastOffset)
+//	tvb.ApplyTag(colorTag, xistart, xiend)
+	tvb.ApplyTagByName(loglevel, xistart, xiend)
+}
+
+func appendLogLine(line, loglevel string, timestamp int64, section, all bool) {
 	thisTab := allTabs[loglevel]
 
 	if thisTab.TVBuffer == nil {
@@ -116,24 +135,11 @@ func appendLogLine(line, loglevel string, section, all bool) {
 //	colorTag, err := tvTagTable.Lookup(loglevel)
 
 	if section {
-		iend := thisTab.TVBuffer.GetEndIter()
-		lastOffset := iend.GetOffset()
-		fmt.Println("saved offset = ", lastOffset)
-		thisTab.TVBuffer.Insert(iend, line+"\n")
-		xistart, xiend := thisTab.TVBuffer.GetBounds()
-		xistart = thisTab.TVBuffer.GetIterAtOffset(lastOffset)
-	//	thisTab.TVBuffer.ApplyTag(colorTag, xistart, xiend)
-		thisTab.TVBuffer.ApplyTagByName(loglevel, xistart, xiend)
+		appendLogToTVB(thisTab.TVBuffer, line, loglevel, timestamp)
 	}
 
 	if all {
-		thisTab = allTabs["all"]
-		iend := thisTab.TVBuffer.GetEndIter()
-		lastOffset := iend.GetOffset()
-		thisTab.TVBuffer.Insert(iend, "["+loglevel+"] "+line+"\n")
-		xistart, xiend := thisTab.TVBuffer.GetBounds()
-		xistart = thisTab.TVBuffer.GetIterAtOffset(lastOffset)
-		thisTab.TVBuffer.ApplyTagByName(loglevel, xistart, xiend)
+		appendLogToTVB(allTabs["all"].TVBuffer, "["+loglevel+"] "+line, loglevel, timestamp)
 	}
 
 }
@@ -153,8 +159,9 @@ func guiLog(data slmData) {
 
 			if err == nil && matched {
 				fmt.Println("XXX: might wildcard against: ", allSuppressions[i].Description)
-				allSuppressions[i].Count += 1
+				allSuppressions[i].Count++
 				suppressed = true
+				update_suppression_count(i, allSuppressions[i].Count)
 			}
 
 		}
@@ -180,7 +187,8 @@ func guiLog(data slmData) {
 		off1 := starter.GetOffset()
 
 		if nbuf > 2 {
-			ender := allTabs[data.LogLevel].TVBuffer.GetIterAtOffset(off1 + 5)
+			inssPrev := fmt.Sprintf("[%dx] ", nbuf-1)
+			ender := allTabs[data.LogLevel].TVBuffer.GetIterAtOffset(off1 + len(inssPrev))
 			allTabs[data.LogLevel].TVBuffer.Delete(starter, ender)
 			// ???
 			starter = allTabs[data.LogLevel].TVBuffer.GetStartIter()
@@ -192,12 +200,13 @@ func guiLog(data slmData) {
 
 		starter = allTabs[data.LogLevel].TVBuffer.GetStartIter()
 		starter.SetLine(bufentry.LineTV)
-		ender := allTabs[data.LogLevel].TVBuffer.GetIterAtOffset(starter.GetOffset() + 5)
+		ender := allTabs[data.LogLevel].TVBuffer.GetIterAtOffset(starter.GetOffset() + len(inss) - 1)
 //		_, ender = allTabs[data.LogLevel].TVBuffer.GetBounds()
 		allTabs[data.LogLevel].TVBuffer.ApplyTagByName("bold", starter, ender)
-		appendLogLine(data.LogLine, data.LogLevel, false, true)
+		allTabs[data.LogLevel].TVBuffer.ApplyTagByName("underline", starter, ender)
+		appendLogLine(data.LogLine, data.LogLevel, data.Timestamp, false, true)
 	} else {
-		appendLogLine(data.LogLine, data.LogLevel, true, true)
+		appendLogLine(data.LogLine, data.LogLevel, data.Timestamp, true, true)
 	}
 }
 
@@ -294,6 +303,19 @@ func addRow(listStore *gtk.ListStore, description, wildcard string, nadded int) 
 
 }
 
+func update_suppression_count(rownum, val int) {
+	listStore := globalLS
+
+	ix, _ := listStore.GetIterFirst()
+
+	if listStore.IterNthChild(ix, nil, rownum) {
+		listStore.SetValue(ix, 0, val)
+	} else {
+		fmt.Println("Error: tried to update suppression count for non-existent row: ", rownum)
+	}
+
+}
+
 
 type sortStrings []string
 
@@ -356,6 +378,7 @@ func setup_settings() {
 		tv.AppendColumn(createColumn("Wildcard", 2))
 
 		listStore := createListStore(3)
+		globalLS = listStore
 
 		tv.SetModel(listStore)
 
@@ -388,6 +411,18 @@ func get_bold_texttag() *gtk.TextTag {
 
 	boldTT.SetProperty("weight", pango.WEIGHT_ULTRABOLD)
 	return boldTT
+}
+
+func get_underline_texttag() *gtk.TextTag {
+	ulTT, err := gtk.TextTagNew("underline")
+
+	if err != nil {
+		log.Fatal("Unable to create text tag for underline:", err)
+	}
+
+	ulTT.SetProperty("underline", pango.UNDERLINE_SINGLE)
+	ulTT.SetProperty("size", pango.SCALE_XX_LARGE)
+	return ulTT
 }
 
 func gui_main() {
@@ -462,6 +497,7 @@ func gui_main() {
 
 		tvTagTable.Add(tt)
 		tvTagTable.Add(get_bold_texttag())
+		tvTagTable.Add(get_underline_texttag())
 
 		defaultTextProvider, err := gtk.CssProviderNew()
 

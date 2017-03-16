@@ -24,7 +24,7 @@ type dbusServer struct {
 type slmData struct {
 	EventID string
         LogLevel string
-        Timestamp string
+        Timestamp int64
         LogLine string
 	Metadata map[string]string
 }
@@ -58,7 +58,6 @@ func newDbusServer() (*dbusServer, error) {
 	return ds, nil
 }
 
-//func (ds *dbusServer) Alert(message string) *dbus.Error {
 func (ds *dbusServer) Alert(data slmData) *dbus.Error {
 //	log.Printf(message)
 //        dn.show("sysevent", message, true)

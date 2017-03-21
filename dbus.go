@@ -61,16 +61,14 @@ func newDbusServer() (*dbusServer, error) {
 func (ds *dbusServer) Alert(data slmData) *dbus.Error {
 //	log.Printf(message)
 //        dn.show("sysevent", message, true)
-//	guiLog(message)
 	log.Printf("GOT IT:", data.LogLine)
 
 	if data.LogLevel == "critical" {
-		dn.show("sysevent", data.LogLine, true)
+//		dn.show("sysevent", data.LogLine, true)
 	} else {
 		log.Println("Skipping event bubble for non-critical log item")
 	}
 
-//	guiLog(data)
 	glib.IdleAdd(guiLog, data)
 
 	return nil

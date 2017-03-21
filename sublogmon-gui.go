@@ -508,21 +508,22 @@ func updateRow(listStore *gtk.ListStore, colno, data int) {
 	return
 }
 
-func addRow(listStore *gtk.ListStore, description, wildcard string, nadded int) {
+func addSuppRow(listStore *gtk.ListStore, description, wildcard string, metaNames []string, metadata map[string]string) {
 	iter := listStore.Append()
 
-	colVals := make([]interface{}, nadded+3)
+	colVals := make([]interface{}, len(metaNames)+3)
 	colVals[0] = 0
 	colVals[1] = description
 	colVals[2] = wildcard
 
-	for n := 0; n < nadded; n++ {
-		colVals[n+3] = "a"
+	for n := 0; n < len(metaNames); n++ {
+		mval, _ := metadata[metaNames[n]]
+		colVals[n+3] = mval
 	}
 
-	colNums := make([]int, nadded+3)
+	colNums := make([]int, len(metaNames)+3)
 
-	for n := 0; n < nadded+3; n++ {
+	for n := 0; n < len(metaNames)+3; n++ {
 		colNums[n] = n
 	}
 
@@ -662,7 +663,7 @@ func setup_settings() {
 		}
 
 		for n := 0; n < len(allSuppressions); n++ {
-			addRow(listStore, allSuppressions[n].Description, allSuppressions[n].Wildcard, 3)
+			addSuppRow(listStore, allSuppressions[n].Description, allSuppressions[n].Wildcard, allMetadata, allSuppressions[n].Metadata)
 		}
 
 	}

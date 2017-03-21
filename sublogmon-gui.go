@@ -37,6 +37,7 @@ type logSuppression struct {
 
 type logBuffered struct {
 	Line string
+	OrigLine string
 	Metadata map[string]string
 	Timestamps []time.Time
 	LineIdx int
@@ -231,7 +232,7 @@ func loadSuppressions(filepath string) bool {
 	return true
 }
 
-func buffer_line(loglevel, line string, metadata map[string]string) (int, logBuffered) {
+func buffer_line(loglevel, line, oline string, metadata map[string]string) (int, logBuffered) {
 	found := -1
 	now := time.Now()
 
@@ -256,7 +257,7 @@ func buffer_line(loglevel, line string, metadata map[string]string) (int, logBuf
 //	lineno := allTabs[loglevel].TVBuffer.GetLineCount() - 1
 
 	fmt.Println("_____________ lineno = ", lineno)
-	newbuf := logBuffered { line, metadata, []time.Time{ now }, lineno }
+	newbuf := logBuffered { line, oline, metadata, []time.Time{ now }, lineno }
 	logBuffer[loglevel] = append(logBuffer[loglevel], newbuf)
 	return 0, newbuf
 }
@@ -322,7 +323,7 @@ func guiLog(data slmData) {
 		process = mprocess
 	}
 
-	nbuf, bufentry := buffer_line(data.LogLevel, data.LogLine, data.Metadata)
+	nbuf, bufentry := buffer_line(data.LogLevel, data.LogLine, data.OrigLogLine, data.Metadata)
 	fmt.Println("---------- nbuf = ", nbuf)
 
 	if nbuf > 0 {
@@ -489,7 +490,7 @@ func addLogRow(listStore *gtk.ListStore, count int, date, level, provider, proce
 
 }
 
-func updateRow(listStore *gtk.ListStore, colno, data int) {
+func updateRow(listStore *gtk.ListStore, colno int, data interface{}) {
 //	fmt.Println("UPDATE ROW")
 
 	path, err := gtk.TreePathNewFromString(fmt.Sprintf("%d", colno))

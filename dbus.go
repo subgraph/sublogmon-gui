@@ -26,6 +26,7 @@ type slmData struct {
         LogLevel string
         Timestamp int64
         LogLine string
+        OrigLogLine string
 	Metadata map[string]string
 }
 

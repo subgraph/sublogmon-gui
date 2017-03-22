@@ -56,7 +56,7 @@ type slPreferences struct {
 var allTabs map[string]sublogTabView
 var userPrefs slPreferences
 var allSuppressions []logSuppression
-var logBuffer = map[string][]logBuffered { "critical": {}, "alert": {}, "default": {} }
+var logBuffer = map[string][]logBuffered { "critical": {}, "alert": {}, "default": {}, "all": {} }
 var mainWin *gtk.Window
 var Notebook *gtk.Notebook
 var globalLS *gtk.ListStore
@@ -138,6 +138,13 @@ func promptInfo(msg string) {
 //self.set_default_size(150, 100)
 }
 
+func promptChoice(msg string) int {
+	dialog := gtk.MessageDialogNew(mainWin, 0, gtk.MESSAGE_ERROR, gtk.BUTTONS_YES_NO, msg)
+	result := dialog.Run()
+	dialog.Destroy()
+	return result
+}
+
 func promptError(msg string) {
 	dialog := gtk.MessageDialogNew(mainWin, 0, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, "Error: %s", msg)
 	dialog.Run()
@@ -188,7 +195,7 @@ func loadPreferences() bool {
 	usr, err := user.Current()
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: could not determine location of user preferences file:", err, "\n");
+		fmt.Fprintf(os.Stderr, "Error: could not determine location of user preferences file: %v", err, "\n");
 		return false
 	}
 
@@ -198,14 +205,14 @@ func loadPreferences() bool {
 	jfile, err := ioutil.ReadFile(prefPath)
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: could not read preference data from file:", err, "\n")
+		fmt.Fprintf(os.Stderr, "Error: could not read preference data from file: %v", err, "\n")
 		return false
 	}
 
 	err = json.Unmarshal(jfile, &userPrefs)
 
 	if err != nil {
-                fmt.Fprintf(os.Stderr, "Error: could not load preferences data from file:", err, "\n")
+                fmt.Fprintf(os.Stderr, "Error: could not load preferences data from file: %v", err, "\n")
 		return false
 	}
 
@@ -248,6 +255,9 @@ func buffer_line(loglevel, line, oline string, metadata map[string]string) (int,
 		}
 
 	}
+
+	anewbuf := logBuffered { line, oline, metadata, []time.Time{ now }, len(logBuffer["all"]) }
+	logBuffer["all"] = append(logBuffer[loglevel], anewbuf)
 
 	if found >= 0 {
 		logBuffer[loglevel][found].Timestamps = append(logBuffer[loglevel][found].Timestamps, now)
@@ -350,7 +360,7 @@ func guiLog(data slmData) {
 
 	nbuf, bufentry := buffer_line(data.LogLevel, data.LogLine, data.OrigLogLine, data.Metadata)
 //	fmt.Println("ORIG: ", data.OrigLogLine)
-	fmt.Println("---------- nbuf = ", nbuf)
+//	fmt.Println("---------- nbuf = ", nbuf)
 
 	if nbuf > 0 {
 		fmt.Println("+++++++++++++++ should overwrite line: ", bufentry.LineIdx)
@@ -790,8 +800,6 @@ func gui_main() {
 		scrollbox.Add(box)
 
 
-
-
 		tv, err := gtk.TreeViewNew()
 
 		if err != nil {
@@ -800,6 +808,14 @@ func gui_main() {
 
 		tv.SetSizeRequest(300, 300)
 		tv.SetHeadersClickable(true)
+
+		cb, err := gtk.ButtonNewWithLabel("Clear buffer")
+
+		if err != nil {
+			log.Fatal("Unable to create button:", err)
+		}
+
+		box.Add(cb)
 		box.Add(tv)
 
 		tv.AppendColumn(createColumn("#", 0))
@@ -820,10 +836,21 @@ func gui_main() {
 		tv.AppendColumn(lcol)
 
 		listStore := createLogListStore(true)
-		globalLS = listStore
 
 		tv.SetModel(listStore)
 
+		lls := loglevel
+		cb.Connect("clicked", func() {
+			choice := promptChoice("Do you really want to clear the " + lls + " log buffer?")
+
+			if choice != int(gtk.RESPONSE_YES) {
+				return
+			}
+
+			fmt.Println(logBuffer)
+			listStore.Clear()
+			logBuffer[lls] = make([]logBuffered, 0)
+		})
 
 		tv.Connect("row-activated", func() {
 			fmt.Println("DOUBLE CLICK")

@@ -289,29 +289,52 @@ func appendLogLine(line, oline, loglevel, provider, process string, timestamp in
 func guiLog(data slmData) {
 	fmt.Printf("XXX: loglevel = %s, eventid = %s\n", data.LogLevel, data.EventID)
 	suppressed := false
+	possibleSuppression := false
+
 
 	for i := 0; i < len(allSuppressions); i++ {
 
 		if len(allSuppressions[i].Wildcard) == 0 {
-			fmt.Println("XXX: possible regex match: ", allSuppressions[i].Description)
-//			allSuppressions[i].Count += 1
-//			suppressed = true
+//			fmt.Println("XXX: possible regex match: ", allSuppressions[i].Description)
+			possibleSuppression = true
 		} else {
 			matched, err := regexp.MatchString(allSuppressions[i].Wildcard, data.LogLine)
 
 			if err == nil && matched {
-				fmt.Println("XXX: might wildcard against: ", allSuppressions[i].Description)
-				allSuppressions[i].Count++
-				suppressed = true
-				update_suppression_count(i, allSuppressions[i].Count)
+				possibleSuppression = true
 			}
 
 		}
 
-		fmt.Println("suppressions count for ", allSuppressions[i].Description, " = ", allSuppressions[i].Count)
-	}
+		if possibleSuppression {
 
-//	Metadata map[string]string
+			for mname := range allSuppressions[i].Metadata {
+
+				if allSuppressions[i].Metadata[mname] == "" {
+					continue
+				}
+
+				matched, err := regexp.MatchString(allSuppressions[i].Metadata[mname], data.Metadata[mname])
+
+				if (err == nil && matched) || (data.Metadata[mname] == allSuppressions[i].Metadata[mname]) {
+//					fmt.Println("//////////////////// actually seemed to match = ", data.Metadata[mname])
+				} else {
+					possibleSuppression = false
+				}
+
+			}
+
+			if possibleSuppression {
+				fmt.Println("////////// made it all the way through: ", data.LogLine)
+				allSuppressions[i].Count++
+				update_suppression_count(i, allSuppressions[i].Count)
+				suppressed = true
+			}
+
+		}
+
+//		fmt.Println("suppressions count for ", allSuppressions[i].Description, " = ", allSuppressions[i].Count)
+	}
 
 	if suppressed {
 		fmt.Println("*** WAS SUPPRESSED: ", data.LogLine)
@@ -326,35 +349,12 @@ func guiLog(data slmData) {
 	}
 
 	nbuf, bufentry := buffer_line(data.LogLevel, data.LogLine, data.OrigLogLine, data.Metadata)
-	fmt.Println("ORIG: ", data.OrigLogLine)
+//	fmt.Println("ORIG: ", data.OrigLogLine)
 	fmt.Println("---------- nbuf = ", nbuf)
 
 	if nbuf > 0 {
 		fmt.Println("+++++++++++++++ should overwrite line: ", bufentry.LineIdx)
 		updateRow(allTabs[data.LogLevel].LS, 0, nbuf)
-
-/*		starter := allTabs[data.LogLevel].TVBuffer.GetStartIter()
-		starter.SetLine(bufentry.LineTV)
-		off1 := starter.GetOffset()
-
-		if nbuf > 2 {
-			inssPrev := fmt.Sprintf("[%dx] ", nbuf-1)
-			ender := allTabs[data.LogLevel].TVBuffer.GetIterAtOffset(off1 + len(inssPrev))
-			allTabs[data.LogLevel].TVBuffer.Delete(starter, ender)
-			// ???
-			starter = allTabs[data.LogLevel].TVBuffer.GetStartIter()
-			starter.SetLine(bufentry.LineTV)
-		}
-
-		inss := fmt.Sprintf("[%dx] ", nbuf)
-		allTabs[data.LogLevel].TVBuffer.Insert(starter, inss)
-
-		starter = allTabs[data.LogLevel].TVBuffer.GetStartIter()
-		starter.SetLine(bufentry.LineTV)
-		ender := allTabs[data.LogLevel].TVBuffer.GetIterAtOffset(starter.GetOffset() + len(inss) - 1)
-//		_, ender = allTabs[data.LogLevel].TVBuffer.GetBounds()
-		allTabs[data.LogLevel].TVBuffer.ApplyTagByName("bold", starter, ender)
-		allTabs[data.LogLevel].TVBuffer.ApplyTagByName("underline", starter, ender) */
 		appendLogLine(data.LogLine, data.OrigLogLine, data.LogLevel, data.EventID, process, data.Timestamp, false, true)
 	} else {
 		appendLogLine(data.LogLine, data.OrigLogLine, data.LogLevel, data.EventID, process, data.Timestamp, true, true)
@@ -413,7 +413,6 @@ func add_all_unique_meta_fields(mmap []string, data map[string]string) []string 
 		}
 
 		if j == len(mmap) {
-			fmt.Println("YYY appending: metadata name = ", i)
 			mmap = append(mmap, i)
 		}
 
@@ -437,6 +436,7 @@ func createColumn(title string, id int) *gtk.TreeViewColumn {
 	}
 
 	column.SetSortColumnID(id)
+	column.SetResizable(true)
 	return column
 }
 
@@ -536,7 +536,6 @@ func addSuppRow(listStore *gtk.ListStore, description, wildcard string, metaName
 		colNums[n] = n
 	}
 
-
 	err := listStore.Set(iter, colNums, colVals)
 
 	if err != nil {
@@ -593,7 +592,6 @@ func setup_settings() {
 		log.Fatal("Unable to create notebook label:", err)
 	}
 
-//	box.Add(scrollbox)
 	scrollbox.Add(box)
 	scrollbox.SetSizeRequest(600, 800)
 
@@ -670,14 +668,14 @@ func setup_settings() {
 		tv.AppendColumn(createColumn("Description", 1))
 		tv.AppendColumn(createColumn("Wildcard", 2))
 
-		listStore := createListStore(3)
-		globalLS = listStore
-		tv.SetModel(listStore)
-
 		for n := 0; n < len(allSuppressions); n++ {
 			allMetadata = add_all_unique_meta_fields(allMetadata, allSuppressions[n].Metadata)
 			sort.Sort(sortStrings(allMetadata))
 		}
+
+		listStore := createListStore(3+len(allMetadata))
+		globalLS = listStore
+		tv.SetModel(listStore)
 
 		fmt.Printf("XXX: got %d unique metadata fields\n", len(allMetadata))
 		for x := 0; x < len(allMetadata); x++ {

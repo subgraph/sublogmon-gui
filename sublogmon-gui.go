@@ -49,6 +49,7 @@ type slPreferences struct {
 	Wintop uint
 	Winleft uint
 	Logfile string
+	CollapseWin uint
 }
 
 
@@ -60,6 +61,7 @@ var mainWin *gtk.Window
 var Notebook *gtk.Notebook
 var globalLS *gtk.ListStore
 var outLogFile *os.File = nil
+var colScale *gtk.Scale = nil
 
 var allLogLevels = []string { "critical", "alert", "default", "all" }
 
@@ -262,7 +264,7 @@ func buffer_line(loglevel, line, oline string, metadata map[string]string) (int,
 	return 0, newbuf
 }
 
-func appendLogLine(line, loglevel, provider, process string, timestamp int64, section, all bool) {
+func appendLogLine(line, oline, loglevel, provider, process string, timestamp int64, section, all bool) {
 	thisTab := allTabs[loglevel]
 
 	if thisTab.LS == nil {
@@ -274,14 +276,14 @@ func appendLogLine(line, loglevel, provider, process string, timestamp int64, se
 	tss := time.Unix(timestamp / 1000000000, timestamp % 1000000000).Format("02/01/06 15:04:05") + "." + fmt.Sprintf("%d", (timestamp % 1000000000)/10000)
 
 	if section {
-		addLogRow(thisTab.LS, 0, tss, loglevel, provider, process, line)
+		addLogRow(thisTab.LS, 0, tss, loglevel, provider, process, line, oline)
 	}
 
 	if all {
-		addLogRow(allTabs["all"].LS, 0, tss, loglevel, provider, process, line)
+		addLogRow(allTabs["all"].LS, 0, tss, loglevel, provider, process, line, oline)
 	}
 
-	writeOutLog(line+"\n")
+	writeOutLog(tss + "[" + loglevel + "] " + line+"\n")
 }
 
 func guiLog(data slmData) {
@@ -324,6 +326,7 @@ func guiLog(data slmData) {
 	}
 
 	nbuf, bufentry := buffer_line(data.LogLevel, data.LogLine, data.OrigLogLine, data.Metadata)
+	fmt.Println("ORIG: ", data.OrigLogLine)
 	fmt.Println("---------- nbuf = ", nbuf)
 
 	if nbuf > 0 {
@@ -352,10 +355,14 @@ func guiLog(data slmData) {
 //		_, ender = allTabs[data.LogLevel].TVBuffer.GetBounds()
 		allTabs[data.LogLevel].TVBuffer.ApplyTagByName("bold", starter, ender)
 		allTabs[data.LogLevel].TVBuffer.ApplyTagByName("underline", starter, ender) */
-		appendLogLine(data.LogLine, data.LogLevel, data.EventID, process, data.Timestamp, false, true)
+		appendLogLine(data.LogLine, data.OrigLogLine, data.LogLevel, data.EventID, process, data.Timestamp, false, true)
 	} else {
-		appendLogLine(data.LogLine, data.LogLevel, data.EventID, process, data.Timestamp, true, true)
-		dn.show("sysevent", data.LogLine, true)
+		appendLogLine(data.LogLine, data.OrigLogLine, data.LogLevel, data.EventID, process, data.Timestamp, true, true)
+
+		if data.LogLevel == "critical" || data.LogLevel == "alert" {
+			dn.show("sysevent", data.LogLine, true)
+		}
+
 	}
 
 }
@@ -434,10 +441,10 @@ func createColumn(title string, id int) *gtk.TreeViewColumn {
 }
 
 func createLogListStore(general bool) *gtk.ListStore {
-	colData := []glib.Type{glib.TYPE_INT, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING}
+	colData := []glib.Type{glib.TYPE_INT, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING}
 
 	if general {
-		colData = []glib.Type{glib.TYPE_INT, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING}
+		colData = []glib.Type{glib.TYPE_INT, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_STRING}
 	}
 
 	listStore, err := gtk.ListStoreNew(colData...)
@@ -465,20 +472,21 @@ func createListStore(nadded int) *gtk.ListStore {
 	return listStore
 }
 
-func addLogRow(listStore *gtk.ListStore, count int, date, level, provider, process, line string) {
+func addLogRow(listStore *gtk.ListStore, count int, date, level, provider, process, line, oline string) {
 	iter := listStore.Append()
 
-	colVals := make([]interface{}, 6)
+	colVals := make([]interface{}, 7)
 	colVals[0] = count
 	colVals[1] = date
 	colVals[2] = level
 	colVals[3] = provider
 	colVals[4] = process
 	colVals[5] = line
+	colVals[6] = oline
 
-	colNums := make([]int, 6)
+	colNums := make([]int, len(colVals))
 
-	for n := 0; n < 6; n++ {
+	for n := 0; n < len(colVals); n++ {
 		colNums[n] = n
 	}
 
@@ -611,13 +619,28 @@ func setup_settings() {
 		log.Fatal("Unable to create button:", err)
 	}
 
-
 	h.PackStart(l, false, true, 10)
 	h.PackStart(e, false, true, 10)
 	h.PackStart(b, false, true, 10)
-	h.SetMarginTop(5)
+	h.SetMarginTop(10)
+	box.Add(h)
+
+	h = get_hbox()
+	colScale, err = gtk.ScaleNewWithRange(gtk.ORIENTATION_HORIZONTAL, 0, 120, 2)
+
+	if err != nil {
+		log.Fatal("Unable to create scaler:", err)
+	}
+
+	l = get_label("Collapse duplicate log items in interval:")
+	h.PackStart(l, false, true, 10)
+	h.PackStart(colScale, true, true, 10)
+	l = get_label("minutes")
+	h.PackStart(l, false, true, 10)
+	h.SetMarginTop(0)
 	h.SetMarginBottom(20)
 	box.Add(h)
+
 	box.Add(tv)
 
 	b.Connect("clicked", func() {
@@ -649,7 +672,6 @@ func setup_settings() {
 
 		listStore := createListStore(3)
 		globalLS = listStore
-
 		tv.SetModel(listStore)
 
 		for n := 0; n < len(allSuppressions); n++ {
@@ -712,6 +734,7 @@ func gui_main() {
 
 	mainWin.Connect("destroy", func() {
 		fmt.Println("Shutting down...")
+		userPrefs.CollapseWin = uint(colScale.GetValue())
 		savePreferences()
 	        gtk.MainQuit()
 	})
@@ -794,6 +817,10 @@ func gui_main() {
 		tv.AppendColumn(createColumn("Process", 4))
 		tv.AppendColumn(createColumn("Line", 5))
 
+		lcol = createColumn("OLine", 6)
+		lcol.SetVisible(false)
+		tv.AppendColumn(lcol)
+
 		listStore := createLogListStore(true)
 		globalLS = listStore
 
@@ -839,7 +866,7 @@ func gui_main() {
 					return
 				}
 
-				val, err := listStore.GetValue(iter, 5)
+				val, err := listStore.GetValue(iter, 6)
 
 				if err != nil {
 					promptError("Unexpected error getting data from log entry: "+err.Error())
@@ -885,6 +912,8 @@ func gui_main() {
 		fmt.Println("About to try to load log: " + userPrefs.Logfile)
 		openOutLog(userPrefs.Logfile)
 	}
+
+	colScale.SetValue(float64(userPrefs.CollapseWin))
 
 	mainWin.ShowAll()
 	gtk.Main()      // GTK main loop; blocks until gtk.MainQuit() is run. 

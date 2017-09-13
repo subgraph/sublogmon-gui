@@ -16,6 +16,6 @@ Package: sublogmon-gui
 Architecture: any
 Built-Using: ${misc:Built-Using}
 Depends: ${shlibs:Depends},
-         ${misc:Depends}
+         ${misc:Depends}, sublogmon
 Description: sublogmon GUI interface
  eventnotifier Subgraph System Event Notifier

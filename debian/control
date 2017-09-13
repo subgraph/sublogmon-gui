@@ -1,0 +1,21 @@
+Source: sublogmon-gui
+Section: devel
+Priority: extra
+Maintainer: Alexsandr Kibal <ak@subgraph.com>
+Build-Depends: debhelper (>= 10),
+               dh-golang,
+               golang-any,
+               golang-dbus-dev,
+               golang-github-gotk3-gotk3-dev,
+               golang-github-thecreeper-go-notify-dev
+Standards-Version: 3.9.8
+Homepage: https://github.com/subgraph/sublogmon-gui
+XS-Go-Import-Path: github.com/subgraph/sublogmon-gui
+
+Package: sublogmon-gui
+Architecture: any
+Built-Using: ${misc:Built-Using}
+Depends: ${shlibs:Depends},
+         ${misc:Depends}
+Description: sublogmon GUI interface
+ eventnotifier Subgraph System Event Notifier

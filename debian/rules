@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE=1
+export DH_OPTIONS
+export DH_GOPKG := github.com/subgraph/sublogmon-gui
+
+%:
+	dh $@ --buildsystem=golang --with=golang
+
+override_dh_auto_build:
+	dh_auto_build -- -buildmode=pie -pkgdir=$$(mktemp -d -p $(CURDIR))
+
+override_dh_auto_install:
+	dh_auto_install
+	mkdir -p debian/sublogmon-gui/etc/dbus-1/system.d/
+	cp $(CURDIR)/sources/etc/dbus-1/system.d/com.Subgraph.EventNotifier.conf debian/sublogmon-gui/etc/dbus-1/system.d/
+	rm -rf $(CURDIR)/debian/sublogmon-gui/usr/share/gocode
+
+override_dh_auto_test:
+	@echo skipped auto test

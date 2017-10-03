@@ -6,77 +6,77 @@
 package main
 
 import (
-	"github.com/gotk3/gotk3/gtk"
-	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/pango"
-	"log"
-	"fmt"
-	"strings"
-	"sort"
-	"os"
-	"io/ioutil"
 	"encoding/json"
-	"regexp"
-	"time"
+	"fmt"
+	"github.com/gotk3/gotk3/glib"
+	"github.com/gotk3/gotk3/gtk"
+	"github.com/gotk3/gotk3/pango"
+	"io/ioutil"
+	"log"
+	"os"
 	"os/user"
+	"regexp"
+	"sort"
 	"strconv"
+	"strings"
+	"time"
 )
-
 
 type sublogTabView struct {
 	LogLevel string
-	LS *gtk.ListStore
+	LS       *gtk.ListStore
 }
 
 type logSuppression struct {
 	Description string
-	Wildcard string
-	Metadata map[string]string
-	Count int
+	Wildcard    string
+	Metadata    map[string]string
+	Count       int
 }
 
 type logBuffered struct {
-	Line string
-	OrigLine string
-	Metadata map[string]string
+	Line       string
+	OrigLine   string
+	Metadata   map[string]string
 	Timestamps []time.Time
-	LineIdx int
+	LineIdx    int
 }
 
 type slPreferences struct {
-	Winheight uint
-	Winwidth uint
-	Wintop uint
-	Winleft uint
-	Logfile string
+	Winheight   uint
+	Winwidth    uint
+	Wintop      uint
+	Winleft     uint
+	Logfile     string
 	CollapseWin uint
 }
-
 
 var allTabs map[string]sublogTabView
 var userPrefs slPreferences
 var allSuppressions []logSuppression
-var logBuffer = map[string][]logBuffered { "critical": {}, "alert": {}, "default": {}, "all": {} }
+var logBuffer = map[string][]logBuffered{"critical": {}, "alert": {}, "default": {}, "all": {}}
 var mainWin *gtk.Window
 var Notebook *gtk.Notebook
 var globalLS *gtk.ListStore
 var outLogFile *os.File = nil
 var colScale *gtk.Scale = nil
 
-var allLogLevels = []string { "critical", "alert", "default", "all" }
+var allLogLevels = []string{"critical", "alert", "default", "all"}
+
+const fallbackLogLevel = "all"
 
 var colorLevelMap = map[string]string{
 	"critical": "red",
-	"alert": "orange",
-	"default": "black",
+	"alert":    "orange",
+	"default":  "black",
 }
 
 func openOutLog(filename string) bool {
 	var err error
-	outLogFile, err = os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE,0600)
+	outLogFile, err = os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 
 	if err != nil {
-		promptError("Could not open log file for writing: "+err.Error())
+		promptError("Could not open log file for writing: " + err.Error())
 		outLogFile = nil
 		return false
 	}
@@ -98,7 +98,7 @@ func writeOutLog(data string) {
 
 func promptInfo(msg string) {
 	dialog := gtk.MessageDialogNew(mainWin, 0, gtk.MESSAGE_INFO, gtk.BUTTONS_OK, "Displaying full log info:")
-//	dialog.SetDefaultGeometry(500, 200)
+	//	dialog.SetDefaultGeometry(500, 200)
 
 	tv, err := gtk.TextViewNew()
 
@@ -135,7 +135,7 @@ func promptInfo(msg string) {
 	dialog.ShowAll()
 	dialog.Run()
 	dialog.Destroy()
-//self.set_default_size(150, 100)
+	//self.set_default_size(150, 100)
 }
 
 func promptChoice(msg string) int {
@@ -155,7 +155,7 @@ func getConfigPath() string {
 	usr, err := user.Current()
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: could not determine location of user preferences file:", err, "\n");
+		fmt.Fprintf(os.Stderr, "Error: could not determine location of user preferences file:", err, "\n")
 		return ""
 	}
 
@@ -167,7 +167,7 @@ func savePreferences() bool {
 	usr, err := user.Current()
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: could not determine location of user preferences file:", err, "\n");
+		fmt.Fprintf(os.Stderr, "Error: could not determine location of user preferences file:", err, "\n")
 		return false
 	}
 
@@ -190,12 +190,11 @@ func savePreferences() bool {
 	return true
 }
 
-
 func loadPreferences() bool {
 	usr, err := user.Current()
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: could not determine location of user preferences file: %v", err, "\n");
+		fmt.Fprintf(os.Stderr, "Error: could not determine location of user preferences file: %v", err, "\n")
 		return false
 	}
 
@@ -212,7 +211,7 @@ func loadPreferences() bool {
 	err = json.Unmarshal(jfile, &userPrefs)
 
 	if err != nil {
-                fmt.Fprintf(os.Stderr, "Error: could not load preferences data from file: %v", err, "\n")
+		fmt.Fprintf(os.Stderr, "Error: could not load preferences data from file: %v", err, "\n")
 		return false
 	}
 
@@ -232,7 +231,7 @@ func loadSuppressions(filepath string) bool {
 	err = json.Unmarshal(jfile, &allSuppressions)
 
 	if err != nil {
-                fmt.Fprintf(os.Stderr, "Error: could not load suppression data from file:", err, "\n")
+		fmt.Fprintf(os.Stderr, "Error: could not load suppression data from file:", err, "\n")
 		return false
 	}
 
@@ -245,7 +244,7 @@ func buffer_line(loglevel, line, oline string, metadata map[string]string) (int,
 	found := -1
 	now := time.Now()
 
-	fmt.Printf("looking in section %s / len = %d\n", loglevel, len(logBuffer[loglevel]))
+	//	fmt.Printf("looking in section %s / len = %d\n", loglevel, len(logBuffer[loglevel]))
 
 	for i := 0; i < len(logBuffer[loglevel]); i++ {
 
@@ -256,7 +255,7 @@ func buffer_line(loglevel, line, oline string, metadata map[string]string) (int,
 
 	}
 
-	anewbuf := logBuffered { line, oline, metadata, []time.Time{ now }, len(logBuffer["all"]) }
+	anewbuf := logBuffered{line, oline, metadata, []time.Time{now}, len(logBuffer["all"])}
 	logBuffer["all"] = append(logBuffer[loglevel], anewbuf)
 
 	if found >= 0 {
@@ -266,12 +265,31 @@ func buffer_line(loglevel, line, oline string, metadata map[string]string) (int,
 
 	lineno := 0
 	lineno = len(logBuffer[loglevel])
-//	lineno := allTabs[loglevel].TVBuffer.GetLineCount() - 1
+	//	lineno := allTabs[loglevel].TVBuffer.GetLineCount() - 1
 
-	fmt.Println("_____________ lineno = ", lineno)
-	newbuf := logBuffered { line, oline, metadata, []time.Time{ now }, lineno }
+	// fmt.Println("_____________ lineno = ", lineno)
+	newbuf := logBuffered{line, oline, metadata, []time.Time{now}, lineno}
 	logBuffer[loglevel] = append(logBuffer[loglevel], newbuf)
 	return 0, newbuf
+}
+
+func getLogIndex(loglevel string) int {
+	allidx := 0
+	ret := -1
+
+	for i, lvl := range allLogLevels {
+		if lvl == loglevel {
+			ret = i
+		} else if lvl == "all" {
+			allidx = i
+		}
+	}
+
+	if ret == -1 {
+		ret = allidx
+	}
+
+	return ret
 }
 
 func appendLogLine(line, oline, loglevel, provider, process string, timestamp int64, section, all bool) {
@@ -282,30 +300,33 @@ func appendLogLine(line, oline, loglevel, provider, process string, timestamp in
 		return
 	}
 
-	fmt.Println("heh and then logged something.")
-	tss := time.Unix(timestamp / 1000000000, timestamp % 1000000000).Format("02/01/06 15:04:05") + "." + fmt.Sprintf("%d", (timestamp % 1000000000)/10000)
+	tss := time.Unix(timestamp/1000000000, timestamp%1000000000).Format("02/01/06 15:04:05") + "." + fmt.Sprintf("%d", (timestamp%1000000000)/10000)
 
 	if section {
-		addLogRow(thisTab.LS, 0, tss, loglevel, provider, process, line, oline)
+		addLogRow(thisTab.LS, 1, tss, loglevel, provider, process, line, oline)
 	}
 
 	if all {
-		addLogRow(allTabs["all"].LS, 0, tss, loglevel, provider, process, line, oline)
+		addLogRow(allTabs["all"].LS, 1, tss, loglevel, provider, process, line, oline)
 	}
 
-	writeOutLog(tss + "[" + loglevel + "] " + line+"\n")
+	writeOutLog(tss + "[" + loglevel + "] " + line + "\n")
 }
 
 func guiLog(data slmData) {
 	fmt.Printf("XXX: loglevel = %s, eventid = %s\n", data.LogLevel, data.EventID)
+
+	if _, ok := allTabs[data.LogLevel]; !ok {
+		data.LogLevel = fallbackLogLevel
+	}
+
 	suppressed := false
 	possibleSuppression := false
-
 
 	for i := 0; i < len(allSuppressions); i++ {
 
 		if len(allSuppressions[i].Wildcard) == 0 {
-//			fmt.Println("XXX: possible regex match: ", allSuppressions[i].Description)
+			//			fmt.Println("XXX: possible regex match: ", allSuppressions[i].Description)
 			possibleSuppression = true
 		} else {
 			matched, err := regexp.MatchString(allSuppressions[i].Wildcard, data.LogLine)
@@ -327,7 +348,7 @@ func guiLog(data slmData) {
 				matched, err := regexp.MatchString(allSuppressions[i].Metadata[mname], data.Metadata[mname])
 
 				if (err == nil && matched) || (data.Metadata[mname] == allSuppressions[i].Metadata[mname]) {
-//					fmt.Println("//////////////////// actually seemed to match = ", data.Metadata[mname])
+					//					fmt.Println("//////////////////// actually seemed to match = ", data.Metadata[mname])
 				} else {
 					possibleSuppression = false
 				}
@@ -343,7 +364,7 @@ func guiLog(data slmData) {
 
 		}
 
-//		fmt.Println("suppressions count for ", allSuppressions[i].Description, " = ", allSuppressions[i].Count)
+		//		fmt.Println("suppressions count for ", allSuppressions[i].Description, " = ", allSuppressions[i].Count)
 	}
 
 	if suppressed {
@@ -358,16 +379,26 @@ func guiLog(data slmData) {
 		process = mprocess
 	}
 
-	nbuf, bufentry := buffer_line(data.LogLevel, data.LogLine, data.OrigLogLine, data.Metadata)
-//	fmt.Println("ORIG: ", data.OrigLogLine)
-//	fmt.Println("---------- nbuf = ", nbuf)
+	// nbuf, bufentry := buffer_line(data.LogLevel, data.LogLine, data.OrigLogLine, data.Metadata)
+	nbuf, _ := buffer_line(data.LogLevel, data.LogLine, data.OrigLogLine, data.Metadata)
+	//	fmt.Println("ORIG: ", data.OrigLogLine)
+	//	fmt.Println("---------- nbuf = ", nbuf)
 
 	if nbuf > 0 {
-		fmt.Println("+++++++++++++++ should overwrite line: ", bufentry.LineIdx)
+		//fmt.Println("+++++++++++++++ should overwrite line: ", bufentry.LineIdx)
 		updateRow(allTabs[data.LogLevel].LS, 0, nbuf)
-		appendLogLine(data.LogLine, data.OrigLogLine, data.LogLevel, data.EventID, process, data.Timestamp, false, true)
+
+		// Don't re-add to all if we were sent there by fallthrough
+		if data.LogLevel != "all" {
+			appendLogLine(data.LogLine, data.OrigLogLine, data.LogLevel, data.EventID, process, data.Timestamp, false, true)
+		}
 	} else {
-		appendLogLine(data.LogLine, data.OrigLogLine, data.LogLevel, data.EventID, process, data.Timestamp, true, true)
+		// Same here.
+		if data.LogLevel == "all" {
+			appendLogLine(data.LogLine, data.OrigLogLine, data.LogLevel, data.EventID, process, data.Timestamp, true, false)
+		} else {
+			appendLogLine(data.LogLine, data.OrigLogLine, data.LogLevel, data.EventID, process, data.Timestamp, true, true)
+		}
 
 		if data.LogLevel == "critical" || data.LogLevel == "alert" {
 			dn.show("sysevent", data.LogLine, true)
@@ -375,27 +406,31 @@ func guiLog(data slmData) {
 
 	}
 
+	idx := getLogIndex(data.LogLevel)
+	// fmt.Println("Setting page by section idx = ", idx)
+	Notebook.SetCurrentPage(idx)
+
 }
 
 func get_hbox() *gtk.Box {
-        hbox, err := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+	hbox, err := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
 
-        if err != nil {
-                log.Fatal("Unable to create horizontal box:", err)
-        }
+	if err != nil {
+		log.Fatal("Unable to create horizontal box:", err)
+	}
 
-        return hbox
+	return hbox
 }
 
 func get_entry(text string) *gtk.Entry {
-        entry, err := gtk.EntryNew()
+	entry, err := gtk.EntryNew()
 
-        if err != nil {
-                log.Fatal("Unable to create text entry:", err)
-        }
+	if err != nil {
+		log.Fatal("Unable to create text entry:", err)
+	}
 
-        entry.SetText(text)
-        return entry
+	entry.SetText(text)
+	return entry
 }
 
 func get_label(text string) *gtk.Label {
@@ -430,7 +465,6 @@ func add_all_unique_meta_fields(mmap []string, data map[string]string) []string 
 
 	return mmap
 }
-
 
 func createColumn(title string, id int) *gtk.TreeViewColumn {
 	cellRenderer, err := gtk.CellRendererTextNew()
@@ -509,16 +543,14 @@ func addLogRow(listStore *gtk.ListStore, count int, date, level, provider, proce
 }
 
 func updateRow(listStore *gtk.ListStore, colno int, data interface{}) {
-//	fmt.Println("UPDATE ROW")
+	//	fmt.Println("UPDATE ROW")
 
 	path, err := gtk.TreePathNewFromString(fmt.Sprintf("%d", colno))
-
 	if err != nil {
 		log.Fatal("Error looking up row in tree data:", err)
 	}
 
 	iter, err := listStore.GetIter(path)
-
 	if err != nil {
 		log.Fatal("Error looking up row in tree data by path:", err)
 	}
@@ -568,19 +600,18 @@ func update_suppression_count(rownum, val int) {
 
 }
 
-
 type sortStrings []string
 
 func (s sortStrings) Len() int {
-    return len(s)
+	return len(s)
 }
 
 func (s sortStrings) Less(i, j int) bool {
-    return s[i] < s[j]
+	return s[i] < s[j]
 }
 
 func (s sortStrings) Swap(i, j int) {
-    s[i], s[j] = s[j], s[i]
+	s[i], s[j] = s[j], s[i]
 }
 
 func setup_settings() {
@@ -616,7 +647,7 @@ func setup_settings() {
 		log.Fatal("Unable to create treeview:", err)
 	}
 
-//	scrollbox.Add(tv)
+	//	scrollbox.Add(tv)
 
 	h := get_hbox()
 	l := get_label("Log to file:")
@@ -657,7 +688,7 @@ func setup_settings() {
 		userPrefs.Logfile, err = e.GetText()
 
 		if err != nil {
-			promptError("Unexpected error saving log file info: "+err.Error())
+			promptError("Unexpected error saving log file info: " + err.Error())
 			return
 		}
 
@@ -668,12 +699,12 @@ func setup_settings() {
 	})
 
 	if success {
-/*		lString := fmt.Sprintf("Loaded a total of %d suppressions from file: %s\n", len(allSuppressions), supPath)
-		sLabel, err := gtk.LabelNew(lString)
+		/*		lString := fmt.Sprintf("Loaded a total of %d suppressions from file: %s\n", len(allSuppressions), supPath)
+				sLabel, err := gtk.LabelNew(lString)
 
-		if err != nil {
-			log.Fatal("Unable to create notebook label:", err)
-		} */
+				if err != nil {
+					log.Fatal("Unable to create notebook label:", err)
+				} */
 		tv.AppendColumn(createColumn("#", 0))
 		tv.AppendColumn(createColumn("Description", 1))
 		tv.AppendColumn(createColumn("Wildcard", 2))
@@ -683,7 +714,7 @@ func setup_settings() {
 			sort.Sort(sortStrings(allMetadata))
 		}
 
-		listStore := createListStore(3+len(allMetadata))
+		listStore := createListStore(3 + len(allMetadata))
 		globalLS = listStore
 		tv.SetModel(listStore)
 
@@ -699,7 +730,7 @@ func setup_settings() {
 
 	}
 
-//	Notebook.AppendPage(box, hLabel)
+	//	Notebook.AppendPage(box, hLabel)
 	Notebook.AppendPage(scrollbox, hLabel)
 }
 
@@ -723,7 +754,7 @@ func get_underline_texttag() *gtk.TextTag {
 
 	ulTT.SetProperty("underline", pango.UNDERLINE_SINGLE)
 	ulTT.SetProperty("size", pango.SCALE_XX_LARGE)
-//	ulTT.SetProperty("font_desc", "Sans Italic 20")
+	//	ulTT.SetProperty("font_desc", "Sans Italic 20")
 	return ulTT
 }
 
@@ -748,7 +779,7 @@ func gui_main() {
 		fmt.Println("Shutting down...")
 		userPrefs.CollapseWin = uint(colScale.GetValue())
 		savePreferences()
-	        gtk.MainQuit()
+		gtk.MainQuit()
 	})
 
 	mainWin.Connect("configure-event", func() {
@@ -802,7 +833,6 @@ func gui_main() {
 		}
 
 		scrollbox.Add(box)
-
 
 		tv, err := gtk.TreeViewNew()
 
@@ -862,7 +892,7 @@ func gui_main() {
 			sel, err := tv.GetSelection()
 
 			if err != nil {
-				promptError("Unexpected error retrieving selection: "+err.Error())
+				promptError("Unexpected error retrieving selection: " + err.Error())
 				return
 			}
 
@@ -876,36 +906,35 @@ func gui_main() {
 				lIndex, err := strconv.Atoi(rdata.(*gtk.TreePath).String())
 
 				if err != nil {
-					promptError("Unexpected error reading selection data: "+err.Error())
+					promptError("Unexpected error reading selection data: " + err.Error())
 					return
 				}
-
 
 				path, err := gtk.TreePathNewFromString(fmt.Sprintf("%d", lIndex))
 
 				if err != nil {
-					promptError("Unexpected error reading data from selection: "+err.Error())
+					promptError("Unexpected error reading data from selection: " + err.Error())
 					return
 				}
 
 				iter, err := listStore.GetIter(path)
 
 				if err != nil {
-					promptError("Unexpected error looking up log entry: "+err.Error())
+					promptError("Unexpected error looking up log entry: " + err.Error())
 					return
 				}
 
 				val, err := listStore.GetValue(iter, 6)
 
 				if err != nil {
-					promptError("Unexpected error getting data from log entry: "+err.Error())
+					promptError("Unexpected error getting data from log entry: " + err.Error())
 					return
 				}
 
 				sval, err := val.GetString()
 
 				if err != nil {
-					promptError("Unexpected error reading data from log entry: "+err.Error())
+					promptError("Unexpected error reading data from log entry: " + err.Error())
 					return
 				}
 
@@ -913,13 +942,12 @@ func gui_main() {
 				promptInfo(sval)
 			}
 
-                })
-
+		})
 
 		scrollbox.SetSizeRequest(600, 800)
 		Notebook.AppendPage(scrollbox, nbLabel)
 
-		newTab := sublogTabView{ loglevel, listStore }
+		newTab := sublogTabView{loglevel, listStore}
 		allTabs[loglevel] = newTab
 	}
 
@@ -927,7 +955,7 @@ func gui_main() {
 	mainWin.Add(Notebook)
 
 	if userPrefs.Winheight > 0 && userPrefs.Winwidth > 0 {
-		fmt.Printf("height was %d, width was %d\n", userPrefs.Winheight, userPrefs.Winwidth)
+		//fmt.Printf("height was %d, width was %d\n", userPrefs.Winheight, userPrefs.Winwidth)
 		mainWin.Resize(int(userPrefs.Winwidth), int(userPrefs.Winheight))
 	} else {
 		mainWin.SetDefaultSize(800, 600)
@@ -945,5 +973,5 @@ func gui_main() {
 	colScale.SetValue(float64(userPrefs.CollapseWin))
 
 	mainWin.ShowAll()
-	gtk.Main()      // GTK main loop; blocks until gtk.MainQuit() is run. 
+	gtk.Main() // GTK main loop; blocks until gtk.MainQuit() is run.
 }

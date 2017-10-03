@@ -6,8 +6,8 @@ import (
 
 	"github.com/godbus/dbus"
 	//        "github.com/godbus/dbus/introspect"
-	"log"
-//	"github.com/op/go-logging"
+	//	"log"
+	//	"github.com/op/go-logging"
 	"github.com/gotk3/gotk3/glib"
 )
 
@@ -15,21 +15,19 @@ const busName = "com.subgraph.EventNotifier"
 const objectPath = "/com/subgraph/EventNotifier"
 const interfaceName = "com.subgraph.EventNotifier"
 
-
 type dbusServer struct {
 	conn *dbus.Conn
-	run bool
+	run  bool
 }
 
 type slmData struct {
-	EventID string
-        LogLevel string
-        Timestamp int64
-        LogLine string
-        OrigLogLine string
-	Metadata map[string]string
+	EventID     string
+	LogLevel    string
+	Timestamp   int64
+	LogLine     string
+	OrigLogLine string
+	Metadata    map[string]string
 }
-
 
 func newDbusServer() (*dbusServer, error) {
 	conn, err := dbus.SystemBus()
@@ -60,14 +58,12 @@ func newDbusServer() (*dbusServer, error) {
 }
 
 func (ds *dbusServer) Alert(data slmData) *dbus.Error {
-//	log.Printf(message)
-//        dn.show("sysevent", message, true)
-	log.Printf("GOT IT:", data.LogLine)
+	//	log.Printf(message)
 
 	if data.LogLevel == "critical" {
-//		dn.show("sysevent", data.LogLine, true)
+		//		dn.show("sysevent", data.LogLine, true)
 	} else {
-		log.Println("Skipping event bubble for non-critical log item")
+		//		log.Println("Skipping event bubble for non-critical log item")
 	}
 
 	glib.IdleAdd(guiLog, data)

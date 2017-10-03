@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.subgraph.EventNotifier
+Exec=/usr/bin/sublogmon-gui -display :0
+User=user

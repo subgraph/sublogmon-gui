@@ -728,6 +728,10 @@ func get_underline_texttag() *gtk.TextTag {
 }
 
 func gui_main() {
+	if len(os.Args) == 3 && os.Args[1] == "-display" {
+		os.Setenv("DISPLAY", os.Args[2])
+	}
+
 	loadPreferences()
 	gtk.Init(nil)
 

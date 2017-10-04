@@ -4,9 +4,12 @@ import (
 	"log"
 	"fmt"
 	"os"
-	)
+	"time"
+)
+
 
 var dn *DesktopNotifications
+
 
 func main() {
 
@@ -30,6 +33,7 @@ func main() {
 			once = false
 		}
 
+		time.Sleep(1 * time.Second)
         }
 
 }
